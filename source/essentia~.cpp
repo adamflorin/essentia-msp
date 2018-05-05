@@ -9,6 +9,8 @@
 #include "ext_obex.h"
 #include "z_dsp.h"
 
+#include "essentia/algorithmfactory.h"
+
 extern "C" {
 	// External struct
 	typedef struct _essentia {
