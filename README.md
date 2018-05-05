@@ -3,6 +3,8 @@
 `[essentia~]` is a Max wrapper around [Essentia](http://essentia.upf.edu/),
 a Music Information Retrieval library.
 
+NOTE: Currently only builds for 64-bit architecture.
+
 ## Developing
 
 ### Installing dependencies
