@@ -76,6 +76,10 @@ extern "C" {
 		dsp_setup((t_pxobject *)x, 1);
 		outlet_new(x, "signal");
 
+		// essentia WIP
+		essentia::init();
+		essentia::standard::AlgorithmFactory& factory = essentia::standard::AlgorithmFactory::instance();
+
 		return x;
 	}
 

@@ -166,7 +166,16 @@
 					"\"$(C74SUPPORT)/jit-includes\"",
 				);
 				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = (
+					"-framework",
+					MaxAudioAPI,
+					"-framework",
+					JitterAPI,
+					"$(C74_SYM_LINKER_FLAGS)",
+					"-lessentia",
+				);
 				PRODUCT_NAME = "essentia~";
+				VALID_ARCHS = x86_64;
 			};
 			name = Development;
 		};
@@ -183,7 +192,16 @@
 					"\"$(C74SUPPORT)/jit-includes\"",
 				);
 				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = (
+					"-framework",
+					MaxAudioAPI,
+					"-framework",
+					JitterAPI,
+					"$(C74_SYM_LINKER_FLAGS)",
+					"-lessentia",
+				);
 				PRODUCT_NAME = "essentia~";
+				VALID_ARCHS = x86_64;
 			};
 			name = Deployment;
 		};
