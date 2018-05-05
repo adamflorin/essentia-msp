@@ -10,6 +10,10 @@
 #include "z_dsp.h"
 
 #include "essentia/algorithmfactory.h"
+#include "essentia/streaming/algorithms/ringbufferinput.h"
+#include "essentia/pool.h"
+#include "essentia/streaming/algorithms/poolstorage.h"
+#include "essentia/scheduler/network.h"
 
 extern "C" {
 	// External struct
@@ -76,9 +80,8 @@ extern "C" {
 		dsp_setup((t_pxobject *)x, 1);
 		outlet_new(x, "signal");
 
-		// essentia WIP
+		// essentia
 		essentia::init();
-		essentia::standard::AlgorithmFactory& factory = essentia::standard::AlgorithmFactory::instance();
 
 		return x;
 	}
@@ -86,6 +89,12 @@ extern "C" {
 	/** Destroy external instance */
 	void essentia_free(t_essentia *x) {
 		dsp_free((t_pxobject *)x);
+
+		// TODO: cleanup?!
+		// delete spec;
+		// delete mfcc;
+		// network.clear();
+		essentia::shutdown();
 	}
 
 	/** Configure user tooltip prompts */
@@ -106,7 +115,42 @@ extern "C" {
 		long maxvectorsize,
 		long flags
 	) {
-		post("my sample rate is: %f", samplerate);
+
+		/*
+		essentia::Pool pool;
+
+		essentia::Real sampleRate = samplerate;
+		int frameSize = 2048;
+		int hopSize = 1024;
+
+		// init factories
+		essentia::standard::AlgorithmFactory &standardFactory = essentia::standard::AlgorithmFactory::instance();
+		essentia::streaming::AlgorithmFactory &streamingFactory = essentia::streaming::AlgorithmFactory::instance();
+
+		// which type of ring buffer is better??
+		essentia::streaming::RingBufferInput *gen = new essentia::streaming::RingBufferInput();
+		gen->declareParameters();
+		// gen->_bufferSize = hopSize; // ?!
+		gen->output(0).setReleaseSize(hopSize);
+		gen->output(0).setAcquireSize(hopSize);
+		gen->configure();
+
+		// alternately: build ring buffer with factory?
+		// essentia::streaming::Algorithm *gen2 = streamingFactory.create("RingBufferInput", "bufferSize", hopSize * 2, "blockSize", hopSize);
+
+		// init algorithms
+		essentia::streaming::Algorithm* spec  = streamingFactory.create("Spectrum");
+		essentia::streaming::Algorithm* mfcc  = streamingFactory.create("MFCC");
+
+		// build signal chain
+		// TODO: audio into spectrum
+		spec->output("spectrum") >> mfcc->input("spectrum");
+		mfcc->output("bands") >> essentia::streaming::NOWHERE; // DEVNULL
+		mfcc->output("mfcc") >> PC(pool, "my.mfcc");
+
+		essentia::scheduler::Network *network = new essentia::scheduler::Network(gen);
+		network->runPrepare();
+		*/
 
 		object_method(dsp64, gensym("dsp_add64"), x, essentia_perform64, 0, NULL);
 	}
