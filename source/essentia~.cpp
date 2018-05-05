@@ -19,6 +19,15 @@ extern "C" {
 	// External struct
 	typedef struct _essentia {
 		t_pxobject object;
+		int frame_size;
+		// long buffer_offset;
+		std::vector<essentia::Real> audio_buffer;
+		essentia::streaming::RingBufferInput* ring_buffer;
+		essentia::streaming::Algorithm* fc;
+		essentia::streaming::Algorithm* spec;
+		essentia::streaming::Algorithm* mfcc;
+		essentia::Pool pool;
+		essentia::scheduler::Network *network;
 	} t_essentia;
 
 	// Method prototypes
@@ -81,6 +90,7 @@ extern "C" {
 		outlet_new(x, "signal");
 
 		// essentia
+		x->frame_size = 1024;
 		essentia::init();
 
 		return x;
@@ -88,13 +98,11 @@ extern "C" {
 
 	/** Destroy external instance */
 	void essentia_free(t_essentia *x) {
-		dsp_free((t_pxobject *)x);
-
-		// TODO: cleanup?!
-		// delete spec;
-		// delete mfcc;
-		// network.clear();
+		x->network->clear();
+		delete x->network;
 		essentia::shutdown();
+
+		dsp_free((t_pxobject *)x);
 	}
 
 	/** Configure user tooltip prompts */
@@ -115,42 +123,42 @@ extern "C" {
 		long maxvectorsize,
 		long flags
 	) {
+		// init real audio buffer
+		x->audio_buffer = std::vector<essentia::Real>(x->frame_size, 0);
 
-		/*
-		essentia::Pool pool;
+		// init factory
+		auto & factory = essentia::streaming::AlgorithmFactory::instance();
 
-		essentia::Real sampleRate = samplerate;
-		int frameSize = 2048;
-		int hopSize = 1024;
-
-		// init factories
-		essentia::standard::AlgorithmFactory &standardFactory = essentia::standard::AlgorithmFactory::instance();
-		essentia::streaming::AlgorithmFactory &streamingFactory = essentia::streaming::AlgorithmFactory::instance();
-
-		// which type of ring buffer is better??
-		essentia::streaming::RingBufferInput *gen = new essentia::streaming::RingBufferInput();
-		gen->declareParameters();
-		// gen->_bufferSize = hopSize; // ?!
-		gen->output(0).setReleaseSize(hopSize);
-		gen->output(0).setAcquireSize(hopSize);
-		gen->configure();
-
-		// alternately: build ring buffer with factory?
-		// essentia::streaming::Algorithm *gen2 = streamingFactory.create("RingBufferInput", "bufferSize", hopSize * 2, "blockSize", hopSize);
+		// init ring buffer (= "generator algorithm")
+		x->ring_buffer = new essentia::streaming::RingBufferInput();
+		x->ring_buffer->declareParameters();
+		essentia::ParameterMap ring_buffer_params;
+		ring_buffer_params.add("bufferSize", x->frame_size);
+		x->ring_buffer->setParameters(ring_buffer_params);
+		x->ring_buffer->configure();
 
 		// init algorithms
-		essentia::streaming::Algorithm* spec  = streamingFactory.create("Spectrum");
-		essentia::streaming::Algorithm* mfcc  = streamingFactory.create("MFCC");
+		x->fc = factory.create("FrameCutter",
+			"frameSize", x->frame_size,
+			"hopSize", x->frame_size,
+			"startFromZero", true,
+			"validFrameThresholdRatio", 0,
+			"lastFrameToEndOfFile", true,
+			"silentFrames", "keep"
+    );
+		x->spec = factory.create("Spectrum");
+		x->mfcc = factory.create("MFCC");
 
 		// build signal chain
-		// TODO: audio into spectrum
-		spec->output("spectrum") >> mfcc->input("spectrum");
-		mfcc->output("bands") >> essentia::streaming::NOWHERE; // DEVNULL
-		mfcc->output("mfcc") >> PC(pool, "my.mfcc");
+		x->ring_buffer->output("signal") >> x->fc->input("signal");
+		x->fc->output("frame") >> x->spec->input("frame");
+		x->spec->output("spectrum") >> x->mfcc->input("spectrum");
+		x->mfcc->output("bands") >> essentia::streaming::NOWHERE;
+		x->mfcc->output("mfcc") >> PC(x->pool, "my.mfcc");
 
-		essentia::scheduler::Network *network = new essentia::scheduler::Network(gen);
-		network->runPrepare();
-		*/
+		// init network
+		x->network = new essentia::scheduler::Network(x->ring_buffer);
+		x->network->runPrepare();
 
 		object_method(dsp64, gensym("dsp_add64"), x, essentia_perform64, 0, NULL);
 	}
