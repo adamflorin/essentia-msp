@@ -1,6 +1,6 @@
 # [essentia~]
 
-`[essentia~]` is a Max wrapper around [`annoy`](http://essentia.upf.edu/documentation/),
+`[essentia~]` is a Max wrapper around [Essentia](http://essentia.upf.edu/),
 a Music Information Retrieval library.
 
 ## Developing

@@ -1,6 +1,5 @@
 /**
-* essentia~.cpp: wrapper around the essentia library for
-* Music Information Retrieval
+* essentia~.cpp: wrapper around the Essentia Music Information Retrieval library
 * http://essentia.upf.edu/
 *
 * Copyright 2018 Adam Florin
