@@ -115,7 +115,7 @@ class Logger {
   void debug(DebuggingModule module, const std::string& msg, bool resetHeader = false);
   void info(const std::string& msg);
   void warning(const std::string& msg);
-  void error(const std::string& msg);
+  void AF_MOD_HACK_error(const std::string& msg);
 
 };
 
