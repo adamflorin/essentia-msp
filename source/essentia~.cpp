@@ -16,6 +16,9 @@
 #include "essentia/scheduler/network.h"
 
 extern "C" {
+
+	const int DEFAULT_NUM_MFCCS = 20;
+
 	// External struct
 	typedef struct _essentia {
 		t_pxobject object;
@@ -28,6 +31,7 @@ extern "C" {
 		essentia::streaming::Algorithm* mfcc;
 		essentia::Pool pool;
 		essentia::scheduler::Network *network;
+		void *mfcc_outlet;
 	} t_essentia;
 
 	// Method prototypes
@@ -87,7 +91,7 @@ extern "C" {
 
 		// I/O
 		dsp_setup((t_pxobject *)x, 1);
-		outlet_new(x, "signal");
+		x->mfcc_outlet = listout(x);
 
 		// essentia
 		x->frame_size = 1024;
@@ -132,7 +136,8 @@ extern "C" {
 		x->vector_input = new essentia::streaming::VectorInput<essentia::Real>(&x->audio_buffer);
 
 		// init algorithms
-		x->fc = factory.create("FrameCutter",
+		x->fc = factory.create(
+			"FrameCutter",
 			"frameSize", x->frame_size,
 			"hopSize", x->frame_size,
 			"startFromZero", true,
@@ -141,7 +146,11 @@ extern "C" {
 			"silentFrames", "keep"
     );
 		x->spec = factory.create("Spectrum");
-		x->mfcc = factory.create("MFCC");
+		x->mfcc = factory.create(
+			"MFCC",
+			"numberCoefficients", DEFAULT_NUM_MFCCS,
+			"sampleRate", samplerate
+		);
 
 		// build signal chain
 		x->vector_input->output("data") >> x->fc->input("signal");
@@ -169,42 +178,37 @@ extern "C" {
 		long flags,
 		void *userparam
 	) {
-
+		// copy audio to buffer, increment offset, and set compute flag
 		bool compute_frame = false;
-
-		// copy audio to buffer
 		for (int i = 0; i < sampleframes; i++) {
 			x->audio_buffer[x->buffer_offset + i] = ins[0][i];
-			x->audio_buffer[i] = ins[0][i];
 		}
-
 		x->buffer_offset += sampleframes;
-
 		if (x->buffer_offset >= x->frame_size) {
 			compute_frame = true;
-			x->buffer_offset = 0; // -= x->frame_size;
+			x->buffer_offset = 0;
 		}
 
+		// compute
 		if (compute_frame) {
+			// clean
 			x->pool.clear();
 			x->vector_input->reset();
 			x->network->reset();
 
+			// process
 			x->network->run();
 
+			// get mfccs
 			auto pool_map = x->pool.getVectorRealPool();
-			auto num_mfcc_frames = pool_map.at("my.mfcc").size();
 			auto mfccs = pool_map.at("my.mfcc").at(0);
-			// object_post((t_object *)x, "GOT %d MFCC FRAMES. the first value of the first is: %f", num_mfcc_frames, mfccs.at(0));
-		}
 
-		// pass thru
-		t_double *inL = ins[0];
-		t_double *outL = outs[0];
-		int n = sampleframes;
-
-		while (n--) {
-			*outL++ = *inL++;
+			// output
+			t_atom mfcc_atoms[DEFAULT_NUM_MFCCS];
+			for (int i = 0; i < DEFAULT_NUM_MFCCS; i++) {
+				atom_setfloat(mfcc_atoms + i, mfccs.at(i));
+			}
+			outlet_list(x->mfcc_outlet, 0L, DEFAULT_NUM_MFCCS, mfcc_atoms);
 		}
 	}
 }
