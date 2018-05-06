@@ -10,7 +10,7 @@
 #include "z_dsp.h"
 
 #include "essentia/algorithmfactory.h"
-#include "essentia/streaming/algorithms/ringbufferinput.h"
+#include "essentia/streaming/algorithms/vectorinput.h"
 #include "essentia/pool.h"
 #include "essentia/streaming/algorithms/poolstorage.h"
 #include "essentia/scheduler/network.h"
@@ -20,9 +20,9 @@ extern "C" {
 	typedef struct _essentia {
 		t_pxobject object;
 		int frame_size;
-		// long buffer_offset;
+		long buffer_offset;
 		std::vector<essentia::Real> audio_buffer;
-		essentia::streaming::RingBufferInput* ring_buffer;
+		essentia::streaming::VectorInput<essentia::Real> *vector_input;
 		essentia::streaming::Algorithm* fc;
 		essentia::streaming::Algorithm* spec;
 		essentia::streaming::Algorithm* mfcc;
@@ -129,13 +129,9 @@ extern "C" {
 		// init factory
 		auto & factory = essentia::streaming::AlgorithmFactory::instance();
 
-		// init ring buffer (= "generator algorithm")
-		x->ring_buffer = new essentia::streaming::RingBufferInput();
-		x->ring_buffer->declareParameters();
-		essentia::ParameterMap ring_buffer_params;
-		ring_buffer_params.add("bufferSize", x->frame_size);
-		x->ring_buffer->setParameters(ring_buffer_params);
-		x->ring_buffer->configure();
+		x->vector_input = new essentia::streaming::VectorInput<essentia::Real>(&x->audio_buffer);
+
+		x->vector_input->_acquireSize = x->frame_size;
 
 		// init algorithms
 		x->fc = factory.create("FrameCutter",
@@ -150,14 +146,14 @@ extern "C" {
 		x->mfcc = factory.create("MFCC");
 
 		// build signal chain
-		x->ring_buffer->output("signal") >> x->fc->input("signal");
+		x->vector_input->output("data") >> x->fc->input("signal");
 		x->fc->output("frame") >> x->spec->input("frame");
 		x->spec->output("spectrum") >> x->mfcc->input("spectrum");
 		x->mfcc->output("bands") >> essentia::streaming::NOWHERE;
 		x->mfcc->output("mfcc") >> PC(x->pool, "my.mfcc");
 
 		// init network
-		x->network = new essentia::scheduler::Network(x->ring_buffer);
+		x->network = new essentia::scheduler::Network(x->vector_input);
 		x->network->runPrepare();
 
 		object_method(dsp64, gensym("dsp_add64"), x, essentia_perform64, 0, NULL);
@@ -175,6 +171,36 @@ extern "C" {
 		long flags,
 		void *userparam
 	) {
+
+		bool compute_frame = false;
+
+		// copy audio to buffer
+		for (int i = 0; i < sampleframes; i++) {
+			x->audio_buffer[x->buffer_offset + i] = ins[0][i];
+			x->audio_buffer[i] = ins[0][i];
+		}
+
+		x->buffer_offset += sampleframes;
+
+		if (x->buffer_offset >= x->frame_size) {
+			compute_frame = true;
+			x->buffer_offset = 0; // -= x->frame_size;
+		}
+
+		if (compute_frame) {
+			x->pool.clear();
+			x->vector_input->reset();
+			x->network->reset();
+
+			x->network->run();
+
+			auto pool_map = x->pool.getVectorRealPool();
+			auto num_mfcc_frames = pool_map.at("my.mfcc").size();
+			auto mfccs = pool_map.at("my.mfcc").at(0);
+			// object_post((t_object *)x, "GOT %d MFCC FRAMES. the first value of the first is: %f", num_mfcc_frames, mfccs.at(0));
+		}
+
+		// pass thru
 		t_double *inL = ins[0];
 		t_double *outL = outs[0];
 		int n = sampleframes;
