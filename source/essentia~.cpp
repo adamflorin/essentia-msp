@@ -131,8 +131,6 @@ extern "C" {
 
 		x->vector_input = new essentia::streaming::VectorInput<essentia::Real>(&x->audio_buffer);
 
-		x->vector_input->_acquireSize = x->frame_size;
-
 		// init algorithms
 		x->fc = factory.create("FrameCutter",
 			"frameSize", x->frame_size,
