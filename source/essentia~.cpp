@@ -18,6 +18,7 @@
 extern "C" {
 
 	const int DEFAULT_NUM_MFCCS = 20;
+	const int DEFAULT_FRAME_SIZE = 1024;
 
 	// External struct
 	typedef struct _essentia {
@@ -94,7 +95,7 @@ extern "C" {
 		x->mfcc_outlet = listout(x);
 
 		// essentia
-		x->frame_size = 1024;
+		x->frame_size = DEFAULT_FRAME_SIZE;
 		essentia::init();
 
 		return x;
