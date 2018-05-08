@@ -18,7 +18,7 @@
 extern "C" {
 
 	const int DEFAULT_NUM_MFCCS = 20;
-	const int DEFAULT_FRAME_SIZE = 1600;
+	const int DEFAULT_FRAME_SIZE = 4410;
 
 	// External struct
 	typedef struct _essentia {
@@ -128,6 +128,8 @@ extern "C" {
 		long maxvectorsize,
 		long flags
 	) {
+        object_post((t_object *)x, "Preparing DSP at frame size %d", x->frame_size);
+        
 		// init real audio buffer
 		x->audio_buffer = std::vector<essentia::Real>(x->frame_size, 0);
 
@@ -145,7 +147,7 @@ extern "C" {
 			"validFrameThresholdRatio", 0,
 			"lastFrameToEndOfFile", true,
 			"silentFrames", "keep"
-    );
+        );
 		x->spec = factory.create("Spectrum");
 		x->mfcc = factory.create(
 			"MFCC",
