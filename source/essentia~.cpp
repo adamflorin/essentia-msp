@@ -17,7 +17,7 @@
 
 extern "C" {
 
-	const int DEFAULT_NUM_MFCCS = 20;
+	const int VECTOR_SIZE = 1;
 	const int DEFAULT_FRAME_SIZE = 4410;
 
 	// External struct
@@ -28,11 +28,10 @@ extern "C" {
 		std::vector<essentia::Real> audio_buffer;
 		essentia::streaming::VectorInput<essentia::Real> *vector_input;
 		essentia::streaming::Algorithm* fc;
-		essentia::streaming::Algorithm* spec;
-		essentia::streaming::Algorithm* mfcc;
+		essentia::streaming::Algorithm* pitch_yin;
 		essentia::Pool pool;
 		essentia::scheduler::Network *network;
-		void *mfcc_outlet;
+		void *vector_outlet;
 	} t_essentia;
 
 	// Method prototypes
@@ -92,7 +91,7 @@ extern "C" {
 
 		// I/O
 		dsp_setup((t_pxobject *)x, 1);
-		x->mfcc_outlet = listout(x);
+		x->vector_outlet = listout(x);
 
 		// essentia
 		x->frame_size = DEFAULT_FRAME_SIZE;
@@ -128,15 +127,14 @@ extern "C" {
 		long maxvectorsize,
 		long flags
 	) {
-        object_post((t_object *)x, "Preparing DSP at frame size %d", x->frame_size);
-        
+		object_post((t_object *)x, "Preparing DSP at frame size %d", x->frame_size);
+
 		// init real audio buffer
 		x->audio_buffer = std::vector<essentia::Real>(x->frame_size, 0);
+		x->vector_input = new essentia::streaming::VectorInput<essentia::Real>(&x->audio_buffer);
 
 		// init factory
 		auto & factory = essentia::streaming::AlgorithmFactory::instance();
-
-		x->vector_input = new essentia::streaming::VectorInput<essentia::Real>(&x->audio_buffer);
 
 		// init algorithms
 		x->fc = factory.create(
@@ -147,20 +145,14 @@ extern "C" {
 			"validFrameThresholdRatio", 0,
 			"lastFrameToEndOfFile", true,
 			"silentFrames", "keep"
-        );
-		x->spec = factory.create("Spectrum");
-		x->mfcc = factory.create(
-			"MFCC",
-			"numberCoefficients", DEFAULT_NUM_MFCCS,
-			"sampleRate", samplerate
 		);
+		x->pitch_yin = factory.create("PitchYin");
 
 		// build signal chain
 		x->vector_input->output("data") >> x->fc->input("signal");
-		x->fc->output("frame") >> x->spec->input("frame");
-		x->spec->output("spectrum") >> x->mfcc->input("spectrum");
-		x->mfcc->output("bands") >> essentia::streaming::NOWHERE;
-		x->mfcc->output("mfcc") >> PC(x->pool, "my.mfcc");
+		x->fc->output("frame") >> x->pitch_yin->input("signal");
+		x->pitch_yin->output("pitchConfidence") >> essentia::streaming::NOWHERE;
+		x->pitch_yin->output("pitch") >> PC(x->pool, "my.pitch");
 
 		// init network
 		x->network = new essentia::scheduler::Network(x->vector_input);
@@ -202,16 +194,14 @@ extern "C" {
 			// process
 			x->network->run();
 
-			// get mfccs
-			auto pool_map = x->pool.getVectorRealPool();
-			auto mfccs = pool_map.at("my.mfcc").at(0);
+			// get values
+			const std::map<std::string,std::vector<essentia::Real>> & pool_real_map = x->pool.getRealPool();
+			std::vector<essentia::Real> pitch_vector = pool_real_map.at("my.pitch");
 
 			// output
-			t_atom mfcc_atoms[DEFAULT_NUM_MFCCS];
-			for (int i = 0; i < DEFAULT_NUM_MFCCS; i++) {
-				atom_setfloat(mfcc_atoms + i, mfccs.at(i));
-			}
-			outlet_list(x->mfcc_outlet, 0L, DEFAULT_NUM_MFCCS, mfcc_atoms);
+			t_atom vector_atoms[VECTOR_SIZE];
+			atom_setfloat(vector_atoms, pitch_vector.at(0));
+			outlet_list(x->vector_outlet, 0L, VECTOR_SIZE, vector_atoms);
 		}
 	}
 }
