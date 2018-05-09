@@ -17,7 +17,7 @@
 
 extern "C" {
 
-	const int DEFAULT_NUM_MFCCS = 20;
+	const int DEFAULT_NUM_MFCCS = 13;
 	const int DEFAULT_FRAME_SIZE = 4410;
 
 	// External struct
