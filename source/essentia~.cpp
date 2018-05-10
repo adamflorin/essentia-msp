@@ -18,7 +18,7 @@
 extern "C" {
 
 	const int DEFAULT_NUM_MFCCS = 13;
-	const int DEFAULT_FRAME_SIZE = 4410;
+	const int DEFAULT_FRAME_SIZE = 1024;
 
 	// External struct
 	typedef struct _essentia {
