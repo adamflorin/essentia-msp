@@ -28,6 +28,7 @@ extern "C" {
 		std::vector<essentia::Real> audio_buffer;
 		essentia::streaming::VectorInput<essentia::Real> *vector_input;
 		essentia::streaming::Algorithm* fc;
+        essentia::streaming::Algorithm* window;
 		essentia::streaming::Algorithm* spec;
 		essentia::streaming::Algorithm* mfcc;
 		essentia::Pool pool;
@@ -103,7 +104,7 @@ extern "C" {
 
 	/** Destroy external instance */
 	void essentia_free(t_essentia *x) {
-		x->network->clear();
+		// x->network->clear(); // CRASHES if network hasn't been set up
 		delete x->network;
 		essentia::shutdown();
 
@@ -147,16 +148,22 @@ extern "C" {
 			"lastFrameToEndOfFile", true,
 			"silentFrames", "keep"
     );
+		x->window = factory.create("Windowing",
+			"size", x->frame_size,
+			"type", "hann"
+		);
 		x->spec = factory.create("Spectrum");
 		x->mfcc = factory.create(
 			"MFCC",
 			"numberCoefficients", DEFAULT_NUM_MFCCS,
-			"sampleRate", samplerate
+			"sampleRate", samplerate,
+            "inputSize", (x->frame_size / 2 + 1)
 		);
 
 		// build signal chain
 		x->vector_input->output("data") >> x->fc->input("signal");
-		x->fc->output("frame") >> x->spec->input("frame");
+		x->fc->output("frame") >> x->window->input("frame");
+        x->window->output("frame") >> x->spec->input("frame");
 		x->spec->output("spectrum") >> x->mfcc->input("spectrum");
 		x->mfcc->output("bands") >> essentia::streaming::NOWHERE;
 		x->mfcc->output("mfcc") >> PC(x->pool, "my.mfcc");
